@@ -20,7 +20,7 @@ pipeline {
         }
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/jasonc2007/jenkins-s3-test' 
+                checkout scm 
             }
         }
 
@@ -60,11 +60,34 @@ pipeline {
                     credentialsId: 'jenkinsuser'
                 ]]) {
                     sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+
                     terraform init
                     '''
                 }
+            }
+        }
+
+        stage('Validate Terraform') {
+            steps {
+                // terraform validate does not need credentials
+                 
+                    sh '''
+
+                    terraform validate
+                    '''
+                
+            }
+        }
+
+        stage('Format Terraform') {
+            steps {
+                // terraform format does not need credentials
+                 
+                    sh '''
+
+                    terraform fmt
+                    '''
+                
             }
         }
 
@@ -75,8 +98,7 @@ pipeline {
                     credentialsId: 'jenkinsuser'
                 ]]) {
                     sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+
                     terraform plan -out=tfplan
                     '''
                 }
@@ -90,10 +112,32 @@ pipeline {
                     credentialsId: 'jenkinsuser'
                 ]]) {
                     sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+
                     terraform apply -auto-approve tfplan
                     '''
+                }
+            }
+        }
+
+         stage('Optional Destroy') {
+            steps {
+                script {
+                    def destroyChoice = input(
+                        message: 'Do you want to run terraform destroy?',
+                        ok: 'Submit',
+                        parameters: [
+                            choice(
+                                name: 'DESTROY',
+                                choices: ['no', 'yes'],
+                                description: 'Select yes to destroy resources'
+                            )
+                        ]
+                    )
+                    if (destroyChoice == 'yes') {
+                        sh 'terraform destroy -auto-approve'
+                    } else {
+                        echo "Skipping destroy"
+                    }
                 }
             }
         }
